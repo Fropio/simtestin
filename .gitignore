@@ -1,0 +1,38 @@
+# ===== PYTHON =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+*.env
+!.env.example
+.pytest_cache/
+
+# ===== БАЗЫ ДАННЫХ =====
+*.db
+*.sqlite3
+*.sqlite3-journal
+database.db
+
+# ===== ЛОГИ =====
+*.log
+logs/
+
+# ===== IDE И РЕДАКТОРЫ =====
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===== СИСТЕМНЫЕ ФАЙЛЫ =====
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ===== ВРЕМЕННЫЕ ФАЙЛЫ =====
+tmp/
+temp/
+*.tmp

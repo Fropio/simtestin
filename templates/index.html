@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎓 SimTestin — Учитель/Ученик</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #050505; --surface: #0f0f12; --surface-2: #1a1a1f;
+            --border: #33333a; --text: #e0e0e0; --text-dim: #888890;
+            --text-muted: #55555a; --accent: #39ff14; --accent-dim: rgba(57,255,20,0.1);
+            --ok: #39ff14; --warn: #ffea00; --err: #ff003c;
+            --radius: 0px; --transition: 100ms steps(4);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { font-size: 16px; }
+        body {
+            font-family: 'VT323', 'JetBrains Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.4;
+            font-size: 1.2rem;
+            -webkit-font-smoothing: none;
+        }
+        body::before {
+            content: " "; display: block; position: fixed; inset: 0;
+            background: linear-gradient(rgba(18,16,16,0) 50%, rgba(0,0,0,0.25) 50%), linear-gradient(90deg, rgba(255,0,0,0.06), rgba(0,255,0,0.02), rgba(0,0,255,0.06));
+            z-index: 999; background-size: 100% 4px, 6px 100%; pointer-events: none;
+        }
+        .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; position: relative; z-index: 1; }
+        .panel {
+            background: var(--surface); border: 2px solid var(--border);
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.5); padding: 24px; margin-bottom: 24px; position: relative;
+        }
+        .panel::after { content: ''; position: absolute; inset: -4px; border: 2px solid var(--border); pointer-events: none; z-index: -1; }
+        .panel-header {
+            font-family: 'Press Start 2P', cursive; font-size: 0.8rem; color: var(--accent);
+            margin-bottom: 20px; padding-bottom: 12px; border-bottom: 2px solid var(--border); line-height: 1.5;
+        }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-size: 1.1rem; color: var(--accent); text-transform: uppercase; margin-bottom: 6px; letter-spacing: 1px; }
+        label.required::after { content: ' *'; color: var(--err); }
+        input, select, textarea {
+            width: 100%; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 1.1rem;
+            background: #000; border: 2px solid var(--border); color: var(--text); border-radius: var(--radius);
+        }
+        input::placeholder { color: var(--text-muted); }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 4px 4px 0px var(--accent-dim); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 600px) { .form-row { grid-template-columns: 1fr; } }
+        .btn {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            padding: 12px 24px; font-family: 'Press Start 2P', cursive; font-size: 0.7rem; line-height: 1.4;
+            text-transform: uppercase; background: var(--surface-2); border: 2px solid var(--border);
+            color: var(--text); cursor: pointer; box-shadow: 4px 4px 0px #000; transition: var(--transition); width: 100%;
+        }
+        .btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0px #000; border-color: var(--text-dim); }
+        .btn:active { transform: translate(2px, 2px); box-shadow: 0px 0px 0px #000; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-primary { border-color: var(--accent); background: var(--accent); color: #000; }
+        .btn-primary:hover { background: #2ecc0f; box-shadow: 6px 6px 0px var(--accent-dim); }
+        .btn-success { border-color: var(--ok); background: var(--ok); color: #000; }
+        .btn-danger { border-color: var(--err); color: var(--err); background: transparent; }
+        .btn-danger:hover { background: rgba(255,0,60,0.1); }
+        .btn-info { border-color: var(--warn); background: var(--warn); color: #000; }
+        .btn-sm { padding: 8px 16px; font-size: 0.6rem; width: auto; }
+        .btn-group { display: flex; flex-wrap: wrap; gap: 8px; }
+        .auth-container { max-width: 500px; margin: 60px auto; }
+        .auth-tabs { display: flex; gap: 4px; margin-bottom: 24px; }
+        .auth-tab {
+            flex: 1; padding: 10px; text-align: center; background: var(--surface-2);
+            border: 2px solid var(--border); cursor: pointer; font-family: 'Press Start 2P', cursive;
+            font-size: 0.5rem; line-height: 1.4;
+        }
+        .auth-tab.active { background: var(--accent); border-color: var(--accent); color: #000; }
+        .auth-form { display: none; }
+        .auth-form.active { display: block; }
+        .header {
+            display: none; align-items: center; justify-content: space-between;
+            padding: 16px 24px; background: var(--surface); border: 2px solid var(--border);
+            margin-bottom: 32px; box-shadow: 4px 4px 0px #000;
+        }
+        .logo { font-family: 'Press Start 2P', cursive; font-size: 0.9rem; color: var(--accent); line-height: 1.5; }
+        .user-info { display: flex; align-items: center; gap: 12px; }
+        .user-badge {
+            padding: 4px 12px; background: var(--accent); color: #000;
+            font-family: 'Press Start 2P', cursive; font-size: 0.5rem; line-height: 1.4;
+        }
+        .admin-btn {
+            padding: 6px 14px; background: var(--err); border: 2px solid var(--err);
+            color: #000; font-family: 'Press Start 2P', cursive; font-size: 0.5rem;
+            cursor: pointer; line-height: 1.4;
+        }
+        .admin-btn:hover { filter: brightness(1.2); }
+        .dashboard { display: none; }
+        .dashboard.active { display: block; }
+        .item-list { display: grid; gap: 12px; }
+        .item { padding: 16px; border: 2px solid var(--border); background: var(--surface-2); transition: var(--transition); }
+        .item:hover { border-color: var(--text-dim); transform: translate(-2px, -2px); box-shadow: 4px 4px 0px var(--border); }
+        .item-header { display: flex; justify-content:space-between; align-items: start; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
+        .item-title { font-weight: bold; font-size: 1.1rem; }
+        .item-meta { font-size: 0.9rem; color: var(--text-dim); display: flex; gap: 16px; flex-wrap: wrap; }
+        .badge { display: inline-flex; padding: 2px 8px; font-size: 0.75rem; border: 1px solid var(--border); background: #000; }
+        .badge-draft { border-color: var(--warn); color: var(--warn); }
+        .badge-published { border-color: var(--ok); color: var(--ok); }
+        .badge-completed { border-color: var(--accent); color: var(--accent); }
+        .quiz-container { display: none; }
+        .quiz-container.active { display: block; }
+        .quiz-question { padding: 20px; border: 2px solid var(--border); margin-bottom: 16px; background: #000; }
+        .quiz-options { display: grid; gap: 8px; margin-top: 12px; }
+        .quiz-option {
+            display: flex; align-items: center; gap: 12px; padding: 12px;
+            border: 2px solid var(--border); cursor: pointer; transition: var(--transition);
+        }
+        .quiz-option:hover { border-color: var(--text-dim); background: var(--surface-2); }
+        .quiz-option.selected { border-color: var(--accent); background: var(--accent-dim); }
+        .quiz-option input { width: auto; }
+        .text-answer-input { width: 100%; margin-top: 8px; padding: 10px; background: #000; border: 2px solid var(--border); color: var(--text); }
+        .question-editor { border: 2px solid var(--border); padding: 16px; margin-bottom: 16px; background: #000; }
+        .question-type-select { display: inline-flex; gap: 8px; margin: 12px 0; }
+        .question-type-btn {
+            padding: 6px 12px; background: var(--surface-2); border: 2px solid var(--border);
+            cursor: pointer; font-family: 'Press Start 2P', cursive; font-size: 0.5rem; line-height: 1.4;
+        }
+        .question-type-btn.active { background: var(--accent); border-color: var(--accent); color: #000; }
+        .options-list { display: grid; gap: 8px; margin: 12px 0; }
+        .option-row { display: flex; gap: 8px; align-items: center; }
+        .option-row input[type="text"] { flex: 1; }
+        .option-row input[type="checkbox"], .option-row input[type="radio"] { width: auto; }
+        .text-answer-hint { font-size: 0.85rem; color: var(--text-dim); margin-top: 8px; padding: 8px; background: rgba(57,255,20,0.1); border: 1px solid var(--accent); }
+        .notification { padding: 12px 16px; background: rgba(57,255,20,0.1); border-left: 3px solid var(--accent); margin-bottom: 8px; font-size: 0.95rem; }
+        .notification.unread { background: rgba(57,255,20,0.2); font-weight: bold; }
+        .hidden { display: none !important; }
+        .mt-4 { margin-top: 32px; }
+        .error { color: var(--err); margin: 12px 0; padding: 12px; background: rgba(255,0,60,0.1); border: 2px solid var(--err); }
+        .success { color: var(--ok); margin: 12px 0; }
+        .text-center { text-align: center; }
+
+        .loader {
+            display: inline-block; width: 16px; height: 16px;
+            border: 2px solid var(--border); border-top-color: var(--accent);
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .btn .loader { margin-right: 8px; }
+        .btn:disabled .loader { border-top-color: var(--text-dim); }
+
+        #toastContainer {
+            position: fixed; top: 20px; right: 20px; z-index: 10000;
+            display: flex; flex-direction: column; gap: 8px; max-width: 320px;
+        }
+        .toast {
+            padding: 12px 16px; border: 2px solid var(--border);
+            background: var(--surface-2); box-shadow: 4px 4px 0px #000;
+            animation: slideIn 0.2s steps(4); display: flex; align-items: center; gap: 12px;
+        }
+        .toast.success { border-color: var(--ok); }
+        .toast.error { border-color: var(--err); }
+        .toast.warn { border-color: var(--warn); }
+        .toast .toast-icon { font-size: 1.2rem; }
+        .toast .toast-message { flex: 1; font-size: 0.95rem; }
+        .toast .toast-close {
+            background: none; border: none; color: var(--text-dim);
+            cursor: pointer; font-size: 1.2rem; padding: 0 4px;
+        }
+        .toast .toast-close:hover { color: var(--text); }
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .search-box {
+            display: flex; gap: 8px; margin-bottom: 16px;
+        }
+        .search-box input {
+            flex: 1; padding: 8px 12px; font-size: 1rem;
+        }
+        .search-box .btn { width: auto; padding: 8px 16px; }
+
+        .modal {
+            display: none; position: fixed; inset: 0; z-index: 2000;
+            background: rgba(0,0,0,0.8); align-items: center; justify-content: center;
+            padding: 24px;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: var(--surface); border: 2px solid var(--border);
+            box-shadow: 8px 8px 0px rgba(0,0,0,0.5); padding: 24px;
+            max-width: 700px; width: 100%; max-height: 80vh; overflow-y: auto;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute; top: 12px; right: 12px;
+            background: var(--err); border: 2px solid var(--err);
+            color: #000; font-family: 'Press Start 2P', cursive;
+            font-size: 0.5rem; padding: 4px 8px; cursor: pointer;
+        }
+
+        .test-stats {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+            margin-top: 12px; padding: 12px; background: rgba(57,255,20,0.05);
+            border: 1px solid var(--accent);
+        }
+        .stat-item { text-align: center; }
+        .stat-value { font-size: 1.5rem; color: var(--accent); font-weight: bold; }
+        .stat-label { font-size: 0.8rem; color: var(--text-dim); }
+
+        .shortcut-hint {
+            font-size: 0.75rem; color: var(--text-muted);
+            margin-left: 8px; padding: 2px 6px; background: var(--surface-2);
+            border: 1px solid var(--border);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .loading { animation: pulse 1s infinite; }
+
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg); border-left: 2px solid var(--border); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border: 2px solid var(--bg); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+    </style>
+</head>
+<body>
+    <div class="header" id="header">
+        <div class="logo">🎓 SIMTESTIN<br><span style="font-size:0.6em;color:var(--text-dim)">v6.12</span></div>
+        <div class="user-info">
+            <span class="user-badge" id="userRole">УЧЕНИК</span>
+            <span id="userName">ПОЛЬЗОВАТЕЛЬ</span>
+            <button class="admin-btn" id="adminBtn" onclick="showAdminPanel()" style="display:none;">[⚙️АДМИН]</button>
+            <button class="btn btn-sm btn-danger" onclick="logout()">[ВЫХОД]</button>
+        </div>
+    </div>
+
+    <div id="toastContainer"></div>
+
+    <div class="container">
+        <div class="auth-container" id="authContainer">
+            <div class="panel">
+                <div class="panel-header">🔐 ВХОД В СИСТЕМУ</div>
+                <div class="auth-form active" id="loginForm">
+                    <div class="form-group">
+                        <label class="required" for="loginUsername">ЛОГИН</label>
+                        <input type="text" id="loginUsername" placeholder="admin" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="required" for="loginPassword">ПАРОЛЬ</label>
+                        <input type="password" id="loginPassword" placeholder="••••••••" required>
+                    </div>
+                    <button class="btn btn-primary" onclick="login()">[ВОЙТИ]</button>
+                    <div class="error" id="loginError" style="display:none;"></div>
+                    <p style="margin-top:16px;font-size:0.9rem;color:var(--text-dim)">
+                        💡 Первый вход: логин=<strong>admin</strong>, пароль=ADMIN_PASSWORD из .env
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="dashboard" id="studentDashboard">
+            <div class="panel" id="notificationsCard">
+                <div class="panel-header">🔔 УВЕДОМЛЕНИЯ</div>
+                <div id="notificationsList"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">📋 МОИ ТЕСТЫ</div>
+                <div class="search-box">
+                    <input type="text" id="testSearch" placeholder="🔍 Поиск теста..." oninput="filterTests()">
+                    <button class="btn btn-sm" onclick="filterTests()">[🔎]</button>
+                </div>
+                <div class="item-list" id="assignedTestsList"></div>
+            </div>
+            <div class="panel quiz-container" id="quizContainer">
+                <div class="panel-header">📝 <span id="quizTitle">ТЕСТ</span></div>
+                <div id="quizQuestions"></div>
+                <div class="btn-group" style="margin-top:20px;">
+                    <button class="btn btn-success" onclick="submitQuiz()">[ОТПРАВИТЬ]</button>
+                    <button class="btn" onclick="cancelQuiz()">[ОТМЕНА]</button>
+                </div>
+            </div>
+            <div class="panel" id="resultCard" style="display:none;">
+                <div class="panel-header">✅ ТЕСТ ЗАВЕРШЁН</div>
+                <p style="margin:20px 0">Тест отправлен!<br><small style="color:var(--text-dim)">Результат доступен только учителю</small></p>
+                <button class="btn btn-primary mt-4" onclick="location.reload()">[НАЗАД]</button>
+            </div>
+        </div>
+
+        <div class="dashboard" id="teacherDashboard">
+            <div class="panel">
+                <div class="panel-header">✨ СОЗДАТЬ ТЕСТ</div>
+                <div class="form-group"><label class="required" for="testTitle">НАЗВАНИЕ ТЕСТА</label><input type="text" id="testTitle" placeholder="Контрольная работа..."></div>
+                <div class="form-group"><label class="required" for="testTopic">ТЕМА / КЛЮЧЕВЫЕ СЛОВА</label><input type="text" id="testTopic" placeholder="Python основы, циклы, функции"></div>
+                <div class="form-row">
+                    <div class="form-group"><label for="testDifficulty">СЛОЖНОСТЬ</label>
+                        <select id="testDifficulty"><option value="легкая">Лёгкая</option><option value="средняя" selected>Средняя</option><option value="сложная">Сложная</option></select>
+                    </div>
+                    <div class="form-group"><label for="testCount">КОЛИЧЕСТВО ВОПРОСОВ</label><input type="number" id="testCount" min="1" max="20" value="5"></div>
+                </div>
+                <div class="form-group">
+                    <label>ТИПЫ ВОПРОСОВ</label>
+                    <div class="form-row">
+                        <div><label><input type="checkbox" id="typeSingle" checked> Один правильный ответ</label></div>
+                        <div><label><input type="checkbox" id="typeMultiple"> Несколько правильных</label></div>
+                        <div><label><input type="checkbox" id="typeText"> Краткий ответ</label></div>
+                    </div>
+                </div>
+                <div class="form-group"><label for="testGroup">НАЗНАЧИТЬ ГРУППЕ</label><select id="testGroup"><option value="">-- ВЫБЕРИТЕ ГРУППУ --</option></select></div>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="generateTestDraft()" id="generateBtn">[🤖 СГЕНЕРИРОВАТЬ]</button>
+                    <button class="btn" onclick="createManualTest()">[✏️ ВРУЧНУЮ]</button>
+                </div>
+                <div class="error" id="testError" style="display:none;"></div>
+            </div>
+            <div class="panel" id="testEditor" style="display:none;">
+                <div class="panel-header">✏️ РЕДАКТОР ТЕСТА <span id="editorTestId"></span></div>
+                <div class="form-group"><label>НАЗВАНИЕ</label><input type="text" id="editTestTitle"></div>
+                <div id="questionsEditor"></div>
+                <div class="btn-group">
+                    <button class="btn" onclick="addQuestion()">[+ ВОПРОС]</button>
+                    <button class="btn btn-primary" onclick="saveTestDraft()" id="saveBtn">[💾 СОХРАНИТЬ <span class="shortcut-hint">Ctrl+S</span>]</button>
+                    <button class="btn btn-info" onclick="previewTest()">[👁️ ПРЕДПРОСМОТР]</button>
+                    <button class="btn btn-success" onclick="publishTest()" id="publishBtn">[📤 ОПУБЛИКОВАТЬ <span class="shortcut-hint">Ctrl+P</span>]</button>
+                    <button class="btn btn-danger" onclick="deleteTest()">[🗑️ УДАЛИТЬ]</button>
+                </div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">📚 МОИ ТЕСТЫ</div>
+                <div class="search-box">
+                    <input type="text" id="myTestSearch" placeholder="🔍 Поиск..." oninput="filterMyTests()">
+                    <button class="btn btn-sm" onclick="filterMyTests()">[🔎]</button>
+                </div>
+                <div class="item-list" id="myTestsList"></div>
+            </div>
+            <div class="panel">
+                <div class="panel-header">📊 РЕЗУЛЬТАТЫ</div>
+                <button class="btn btn-sm" onclick="loadTeacherResults()">[🔄 ОБНОВИТЬ]</button>
+                <div id="teacherResults" style="margin-top:12px;max-height:300px;overflow-y:auto;"></div>
+            </div>
+            <div class="panel" id="teacherAnswersPanel" style="display:none;">
+                <div class="panel-header">👁️ ОТВЕТЫ УЧЕНИКОВ <span id="answersTestTitle"></span></div>
+                <button class="btn btn-sm" onclick="closeAnswersPanel()">[← НАЗАД]</button>
+                <div id="teacherAnswersContent" style="margin-top:12px;max-height:400px;overflow-y:auto;"></div>
+            </div>
+        </div>
+
+        <div class="panel" id="adminPanel" style="display:none;">
+            <div class="panel-header">⚙️ ПАНЕЛЬ АДМИНИСТРАТОРА</div>
+            <div style="margin-bottom:20px;padding:16px;border:2px solid var(--border);background:var(--surface-2)">
+                <div class="panel-header" style="margin:0 0 12px 0;font-size:0.7rem">[👤 РЕГИСТРАЦИЯ]</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="required" for="regUsername">ЛОГИН</label>
+                        <input type="text" id="regUsername" placeholder="user_login">
+                    </div>
+                    <div class="form-group">
+                        <label for="regFullName">ФИО</label>
+                        <input type="text" id="regFullName" placeholder="Иванов Иван Иванович">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="required" for="regRole">РОЛЬ</label>
+                        <select id="regRole" onchange="toggleRegFields()">
+                            <option value="student">УЧЕНИК</option>
+                            <option value="teacher">УЧИТЕЛЬ</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="required" for="regPassword">ПАРОЛЬ</label>
+                        <input type="password" id="regPassword" placeholder="минимум 6 символов" minlength="6">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" id="groupField">
+                        <label class="required" for="regGroup">ГРУППА</label>
+                        <input type="text" id="regGroup" placeholder="ИВТ-21">
+                    </div>
+                    <div class="form-group" id="subjectField" style="display:none;">
+                        <label class="required" for="regSubject">ПРЕДМЕТ</label>
+                        <input type="text" id="regSubject" placeholder="Информатика">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="regEmail">EMAIL</label>
+                    <input type="email" id="regEmail" placeholder="user@school.ru">
+                </div>
+                <button class="btn btn-primary" onclick="adminRegister()">[✅ СОЗДАТЬ]</button>
+                <div class="error" id="adminRegError" style="display:none;margin-top:12px;"></div>
+            </div>
+            <div class="btn-group" style="margin-bottom:16px;flex-wrap:wrap">
+                <button class="btn btn-sm" onclick="loadAdminUsers()">[👥 ПОЛЬЗОВАТЕЛИ]</button>
+                <button class="btn btn-sm" onclick="loadAdminStats()">[📊 СТАТИСТИКА]</button>
+                <button class="btn btn-sm" onclick="loadAdminGroups()">[📁 ГРУППЫ]</button>
+                <button class="btn btn-sm" onclick="loadAdminResults()">[📋 РЕЗУЛЬТАТЫ]</button>
+                <button class="btn btn-sm" onclick="adminBackup()">[💾 БЭКАП]</button>
+                <button class="btn btn-sm" onclick="exportData('xlsx')">[📤 XLSX]</button>
+                <button class="btn btn-sm" onclick="exportData('csv')">[📤 CSV]</button>
+                <button class="btn btn-sm" onclick="exportData('txt')">[📤 TXT]</button>
+                <button class="btn btn-sm btn-danger" onclick="clearResults()">[🗑️ ОЧИСТИТЬ]</button>
+            </div>
+            <div class="search-box" id="adminSearchBox" style="display:none;">
+                <input type="text" id="adminSearch" placeholder="🔍 Поиск..." oninput="filterAdminContent()">
+                <button class="btn btn-sm" onclick="filterAdminContent()">[🔎]</button>
+            </div>
+            <div id="adminContent" style="max-height:400px;overflow-y:auto;"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="previewModal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closePreview()">[✕]</button>
+            <div class="panel-header">👁️ ПРЕДПРОСМОТР ТЕСТА</div>
+            <div id="previewContent"></div>
+            <div class="btn-group" style="margin-top:20px;">
+                <button class="btn btn-primary" onclick="closePreview()">[← НАЗАД]</button>
+                <button class="btn btn-success" onclick="publishTestFromPreview()">[📤 ОПУБЛИКОВАТЬ]</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null, currentTestDraft = null, currentQuiz = null;
+
+        function showToast(message, type = 'success', duration = 3000) {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            const icons = { success: '✅', error: '❌', warn: '⚠️' };
+            toast.innerHTML = `<span class="toast-icon">${icons[type] || 'ℹ️'}</span><span class="toast-message">${message}</span><button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateX(100%)';
+                    setTimeout(() => toast.remove(), 200);
+                }
+            }, duration);
+        }
+
+        function filterTests() {
+            const query = document.getElementById('testSearch').value.toLowerCase();
+            document.querySelectorAll('#assignedTestsList .item').forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(query) ? '' : 'none';
+            });
+        }
+
+        function filterMyTests() {
+            const query = document.getElementById('myTestSearch').value.toLowerCase();
+            document.querySelectorAll('#myTestsList .item').forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(query) ? '' : 'none';
+            });
+        }
+
+        function filterAdminContent() {
+            const query = document.getElementById('adminSearch').value.toLowerCase();
+            const items = document.querySelectorAll('#adminContent div[style*="border-bottom"]:not([style*="font-weight:bold"])');
+            items.forEach(item => {
+                item.style.display = item.textContent.toLowerCase().includes(query) ? '' : 'none';
+            });
+        }
+
+        function setLoading(btn, loading) {
+            if (!btn) return;
+            if (loading) {
+                btn.dataset.originalText = btn.innerHTML;
+                btn.innerHTML = '<span class="loader"></span> ЗАГРУЗКА...';
+                btn.disabled = true;
+            } else {
+                btn.innerHTML = btn.dataset.originalText || btn.innerHTML;
+                btn.disabled = false;
+            }
+        }
+
+        function openModal(modalId) { document.getElementById(modalId).classList.add('active'); document.body.style.overflow = 'hidden'; }
+        function closeModal(modalId) { document.getElementById(modalId).classList.remove('active'); document.body.style.overflow = ''; }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.ctrlKey && e.key === 's' && document.getElementById('testEditor').style.display !== 'none') { e.preventDefault(); saveTestDraft(); }
+            if (e.ctrlKey && e.key === 'p' && document.getElementById('testEditor').style.display !== 'none') { e.preventDefault(); publishTest(); }
+            if (e.key === 'Escape') {
+                closeModal('previewModal');
+                if (document.getElementById('quizContainer').classList.contains('active')) cancelQuiz();
+                if (document.getElementById('teacherAnswersPanel').style.display !== 'none') closeAnswersPanel();
+            }
+        });
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+            const errorEl = document.getElementById('loginError');
+            const btn = document.querySelector('#loginForm .btn-primary');
+            if (!username || !password) { showToast('Введите логин и пароль', 'error'); return; }
+            setLoading(btn, true);
+            try {
+                const res = await fetch('/api/auth/login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username, password}) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Ошибка входа');
+                currentUser = data.user;
+                showToast(`Добро пожаловать, ${data.user.full_name || data.user.username}!`, 'success');
+                showDashboard();
+            } catch (e) { errorEl.textContent = e.message; errorEl.style.display = 'block'; showToast(e.message, 'error'); } finally { setLoading(btn, false); }
+        }
+
+        async function logout() { await fetch('/api/auth/logout', {method: 'POST'}); currentUser = null; showToast('Вы вышли из системы', 'warn'); location.reload(); }
+
+        async function checkAuth() {
+            try {
+                const res = await fetch('/api/auth/status');
+                const data = await res.json();
+                if (data.authenticated) {
+                    currentUser = {username: data.username, role: data.role, full_name: data.full_name};
+                    showDashboard();
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        function showDashboard() {
+            document.getElementById('authContainer').style.display = 'none';
+            document.getElementById('header').style.display = 'flex';
+            document.getElementById('userName').textContent = currentUser.full_name || currentUser.username;
+            document.getElementById('userRole').textContent = currentUser.role === 'student' ? 'УЧЕНИК' : currentUser.role === 'teacher' ? 'УЧИТЕЛЬ' : 'АДМИН';
+            document.getElementById('adminBtn').style.display = currentUser.role === 'admin' ? 'inline-flex' : 'none';
+            if (currentUser.role === 'student') { document.getElementById('studentDashboard').classList.add('active'); loadStudentDashboard(); }
+            else if (currentUser.role === 'teacher') { document.getElementById('teacherDashboard').classList.add('active'); loadTeacherTests(); loadGroupsForTest(); }
+        }
+
+        function showAdminPanel() {
+            if (currentUser?.role !== 'admin') { showToast('ДОСТУП ЗАПРЕЩЁН', 'error'); return; }
+            document.getElementById('adminPanel').style.display = 'block';
+            document.getElementById('adminSearchBox').style.display = 'flex';
+            document.getElementById('adminPanel').scrollIntoView({behavior: 'smooth'});
+            loadAdminUsers();
+        }
+
+        function toggleRegFields() {
+            const role = document.getElementById('regRole').value;
+            document.getElementById('groupField').style.display = role === 'student' ? '' : 'none';
+            document.getElementById('subjectField').style.display = role === 'teacher' ? '' : 'none';
+        }
+
+        async function adminRegister() {
+            const username = document.getElementById('regUsername').value.trim();
+            const full_name = document.getElementById('regFullName').value.trim();
+            const role = document.getElementById('regRole').value;
+            const password = document.getElementById('regPassword').value;
+            const email = document.getElementById('regEmail').value.trim();
+            const group = role === 'student' ? document.getElementById('regGroup').value.trim() : null;
+            const subject = role === 'teacher' ? document.getElementById('regSubject').value.trim() : null;
+            const errorEl = document.getElementById('adminRegError');
+            if (!username || !password) { showToast('Введите логин и пароль', 'error'); return; }
+            if (role === 'student' && !group) { showToast('Для ученика обязательна группа', 'error'); return; }
+            if (role === 'teacher' && !subject) { showToast('Для учителя обязателен предмет', 'error'); return; }
+            try {
+                const res = await fetch('/api/admin/register', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username, full_name, role, password, email, group, subject}) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Ошибка создания');
+                showToast(`✅ ПОЛЬЗОВАТЕЛЬ СОЗДАН: ${username}`, 'success');
+                document.getElementById('regUsername').value = ''; document.getElementById('regFullName').value = '';
+                document.getElementById('regPassword').value = ''; document.getElementById('regEmail').value = '';
+                document.getElementById('regGroup').value = ''; document.getElementById('regSubject').value = '';
+                loadAdminUsers();
+            } catch (e) { errorEl.textContent = e.message; errorEl.style.display = 'block'; showToast(e.message, 'error'); }
+        }
+
+        async function loadAdminUsers() {
+            try {
+                const res = await fetch('/api/admin/users');
+                if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Ошибка загрузки'); }
+                const data = await res.json();
+                document.getElementById('adminContent').innerHTML = `<div style="font-size:0.9rem"><div style="padding:8px 0;border-bottom:2px solid var(--border);font-weight:bold;display:flex;justify-content:space-between"><span>ЛОГИН | РОЛЬ | СТАТУС</span><span style="margin-right:80px">[УПРАВЛЕНИЕ]</span></div>${data.users?.map(u => `<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><div><strong>${u.username}</strong><span class="badge">${u.role === 'student' ? 'УЧЕНИК' : u.role === 'teacher' ? 'УЧИТЕЛЬ' : 'АДМИН'}</span><small style="color:${u.is_active ? 'var(--ok)' : 'var(--err)'}">● ${u.is_active ? 'активен' : 'неактивен'}</small></div>${u.username !== 'admin' ? `<div class="btn-group"><button class="btn btn-sm ${u.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleUserActive(${u.id}, ${u.is_active ? 0 : 1})">[${u.is_active ? '🔴 ОТКЛ.' : '🟢 ВКЛ.'}]</button><button class="btn btn-sm btn-danger" onclick="deleteUser(${u.id}, '${u.username}')">[🗑️]</button></div>` : '<small style="color:var(--text-dim)">[админ]</small>'}</div>`).join('') || '<p style="color:var(--text-dim)">Нет пользователей</p>'}</div>`;
+            } catch (e) { document.getElementById('adminContent').innerHTML = `<p class="error">ОШИБКА: ${e.message}</p>`; showToast(e.message, 'error'); }
+        }
+
+        async function toggleUserActive(userId, isActive) {
+            if (!confirm(`${isActive ? 'ОТКЛЮЧИТЬ' : 'ВКЛЮЧИТЬ'} пользователя?`)) return;
+            try {
+                const res = await fetch(`/api/admin/user/${userId}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({is_active: isActive}) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                showToast('✅ ПОЛЬЗОВАТЕЛЬ ОБНОВЛЁН', 'success'); loadAdminUsers();
+            } catch (e) { showToast('ОШИБКА: ' + e.message, 'error'); }
+        }
+
+        async function deleteUser(userId, username) {
+            if (!confirm(`УДАЛИТЬ "${username}"?\n\nЭто удалит ВСЕ данные пользователя!\nРезультаты тестов, уведомления и т.д.`)) return;
+
+            const confirmCode = prompt(`⚠️ Введите DELETE (заглавными) для подтверждения удаления ${username}:`, '');
+            if (!confirmCode || confirmCode.trim().toUpperCase() !== 'DELETE') {
+                showToast('❌ Отменено: неверный код подтверждения', 'warn');
+                return;
+            }
+
+            showToast(`🗑️ Удаление ${username}...`, 'warn');
+
+            try {
+                const res = await fetch(`/api/admin/user/${userId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'same-origin'
+                });
+
+                const data = await res.json().catch(() => ({}));
+
+                if (!res.ok) {
+                    throw new Error(data.error || `Ошибка ${res.status}: ${res.statusText}`);
+                }
+
+                showToast(`✅ ${data.message}`, 'success');
+                loadAdminUsers();
+
+            } catch (e) {
+                console.error('❌ Ошибка удаления:', e);
+                showToast(`ОШИБКА: ${e.message}`, 'error');
+
+                if (e.message.includes('403')) {
+                    showToast('💡 Проверьте, что вы вошли как АДМИН', 'warn');
+                } else if (e.message.includes('404')) {
+                    showToast('💡 Пользователь не найден', 'warn');
+                }
+            }
+        }
+
+        async function loadAdminStats() {
+            try {
+                const res = await fetch('/api/admin/stats');
+                if (!res.ok) throw new Error('Ошибка загрузки статистики');
+                const s = await res.json();
+                document.getElementById('adminContent').innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px"><div style="padding:12px;border:2px solid var(--border);background:var(--surface-2);text-align:center"><div style="font-size:2rem;color:var(--accent)">${s.total_users||0}</div><div>Всего пользователей</div></div><div style="padding:12px;border:2px solid var(--border);background:var(--surface-2);text-align:center"><div style="font-size:2rem;color:var(--ok)">${s.students||0}</div><div>Ученики</div></div><div style="padding:12px;border:2px solid var(--border);background:var(--surface-2);text-align:center"><div style="font-size:2rem;color:var(--warn)">${s.teachers||0}</div><div>Учителя</div></div><div style="padding:12px;border:2px solid var(--border);background:var(--surface-2);text-align:center"><div style="font-size:2rem;color:var(--accent)">${s.groups||0}</div><div>Группы</div></div><div style="padding:12px;border:2px solid var(--border);background:var(--surface-2);text-align:center"><div style="font-size:2rem;color:var(--ok)">${s.tests_published||0}/${s.tests_total||0}</div><div>Тесты (опубл./всего)</div></div><div style="padding:12px;border:2px solid var(--border);background:var(--surface-2);text-align:center"><div style="font-size:2rem;color:var(--accent)">${s.results_total||0}</div><div>Результатов</div></div><div style="padding:12px;border:2px solid var(--border);background:var(--surface-2);text-align:center"><div style="font-size:2rem;color:var(--ok)">${s.avg_score||0}%</div><div>Средний балл</div></div><div style="padding:12px;border:2px solid var(--border);background:var(--surface-2);text-align:center"><div style="font-size:2rem;color:var(--warn)">${s.unread_notifications||0}</div><div>Непрочитанных</div></div></div>`;
+            } catch (e) { document.getElementById('adminContent').innerHTML = `<p class="error">ОШИБКА: ${e.message}</p>`; showToast(e.message, 'error'); }
+        }
+
+        async function adminBackup() {
+            try {
+                showToast('📦 Подготовка бэкапа...', 'warn');
+                const res = await fetch('/api/admin/backup');
+                if (!res.ok) throw new Error('Ошибка бэкапа');
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url; a.download = `simtestin_backup_${Date.now()}.json`; a.click();
+                URL.revokeObjectURL(url);
+                showToast('✅ БЭКАП СОХРАНЁН', 'success');
+            } catch (e) { showToast('ОШИБКА БЭКАПА: ' + e.message, 'error'); }
+        }
+
+        async function loadAdminGroups() {
+            try {
+                console.log('📁 Загрузка групп...');
+                const res = await fetch('/api/admin/groups');
+                if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || `Ошибка ${res.status}: ${res.statusText}`); }
+                const data = await res.json();
+                console.log('✅ Группы загружены:', data.groups);
+                if (!data.groups || data.groups.length === 0) {
+                    document.getElementById('adminContent').innerHTML = `<div style="font-size:0.9rem"><p style="color:var(--text-dim)">Нет созданных групп</p><p style="font-size:0.8rem;color:var(--text-muted)">💡 Создайте группу через панель учителя или при регистрации ученика</p></div>`;
+                    return;
+                }
+                document.getElementById('adminContent').innerHTML = `<div style="font-size:0.9rem"><div style="padding:8px 0;border-bottom:2px solid var(--border);font-weight:bold">НАЗВАНИЕ | ПРЕПОДАВАТЕЛЬ | СОЗДАНА</div>${data.groups.map(g => `<div style="padding:8px 0;border-bottom:1px solid var(--border)"><strong>${g.name}</strong>${g.description ? `<small style="color:var(--text-dim)"> — ${g.description}</small>` : ''}<small style="color:var(--text-muted);display:block">👨‍🏫 ${g.teacher_name || '—'} | 📅 ${g.created_at ? new Date(g.created_at).toLocaleDateString('ru') : '—'}</small></div>`).join('')}</div>`;
+            } catch (e) {
+                console.error('❌ Ошибка загрузки групп:', e);
+                document.getElementById('adminContent').innerHTML = `<p class="error">ОШИБКА: ${e.message}</p><button class="btn btn-sm" onclick="loadAdminGroups()" style="margin-top:8px">[🔄 ПОВТОРИТЬ]</button>`;
+                showToast(e.message, 'error');
+            }
+        }
+
+        async function loadAdminResults() {
+            try {
+                const res = await fetch('/api/admin/results');
+                if (!res.ok) throw new Error('Ошибка загрузки результатов');
+                const data = await res.json();
+                document.getElementById('adminContent').innerHTML = `<div style="font-size:0.85rem"><div style="padding:8px 0;border-bottom:2px solid var(--border);font-weight:bold">УЧЕНИК | ТЕСТ | РЕЗУЛЬТАТ | ДАТА | [ДЕЙСТВИЕ]</div>${data.results?.map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><div><strong>${r.student_full||r.student_name}</strong> (${r.username}) | 📚${r.test_title} | ✅${r.score}/${r.total_points} | 📅${r.date}</div><button class="btn btn-sm btn-danger" onclick="deleteResult(${r.id})">[✕]</button></div>`).join('') || '<p style="color:var(--text-dim)">Нет результатов</p>'}</div>`;
+            } catch (e) { document.getElementById('adminContent').innerHTML = `<p class="error">ОШИБКА: ${e.message}</p>`; showToast(e.message, 'error'); }
+        }
+
+        async function deleteResult(id) {
+            if (!confirm('УДАЛИТЬ ЭТОТ РЕЗУЛЬТАТ?')) return;
+            try {
+                const res = await fetch(`/api/admin/delete_result/${id}`, {method: 'DELETE'});
+                if (!res.ok) throw new Error('Ошибка');
+                showToast('✅ УДАЛЕНО', 'success'); loadAdminResults();
+            } catch (e) { showToast('ОШИБКА: ' + e.message, 'error'); }
+        }
+
+        async function clearResults() {
+            if (!confirm('⚠️ ОЧИСТИТЬ ВСЕ РЕЗУЛЬТАТЫ?\n\nЭто действие НЕОБРАТИМО!\nВсе результаты тестов будут удалены.')) return;
+
+            const confirmCode = prompt('⚠️ Введите CLEAR (заглавными) для подтверждения:', '');
+            if (!confirmCode || confirmCode.trim().toUpperCase() !== 'CLEAR') {
+                showToast('❌ Отменено: неверный код подтверждения', 'warn');
+                return;
+            }
+
+            showToast('🗑️ Очистка результатов...', 'warn');
+
+            try {
+                const res = await fetch('/api/admin/clear_results', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Confirm': 'true'
+                    },
+                    credentials: 'same-origin'
+                });
+
+                const data = await res.json().catch(() => ({}));
+
+                if (!res.ok) {
+                    throw new Error(data.error || `Ошибка ${res.status}: ${res.statusText}`);
+                }
+
+                showToast(`✅ Удалено ${data.deleted || 0} записей`, 'success');
+                loadAdminResults();
+
+            } catch (e) {
+                console.error('❌ Ошибка очистки:', e);
+                showToast(`ОШИБКА: ${e.message}`, 'error');
+
+                if (e.message.includes('403')) {
+                    showToast('💡 Проверьте, что вы вошли как АДМИН', 'warn');
+                } else if (e.message.includes('400')) {
+                    showToast('💡 Проверьте заголовок X-Confirm', 'warn');
+                }
+            }
+        }
+
+        async function exportData(fmt) {
+            try {
+                showToast('📤 Подготовка экспорта...', 'warn');
+                const res = await fetch(`/api/admin/export?format=${fmt}`);
+                if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Ошибка экспорта'); }
+                const blob = await res.blob(); const url = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = url;
+                const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 15);
+                const ext = fmt === 'xlsx' ? 'xlsx' : fmt === 'csv' ? 'csv' : 'txt';
+                a.download = `simtestin_results_${ts}.${ext}`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast(`✅ ЭКСПОРТ: simtestin_results_${ts}.${ext}`, 'success');
+            } catch (e) { showToast('ОШИБКА ЭКСПОРТА: ' + e.message, 'error'); }
+        }
+
+        async function loadStudentDashboard() {
+            try {
+                const res = await fetch('/api/student/dashboard'), data = await res.json();
+                const notifList = document.getElementById('notificationsList');
+                notifList.innerHTML = data.notifications?.length ? data.notifications.map(n => `<div class="notification ${n.is_read?'':'unread'}" onclick="markNotificationRead(${n.id})"><strong>${n.title}</strong><br>${n.message}</div>`).join('') : '<p style="color:var(--text-dim)">Нет новых уведомлений</p>';
+                const testsList = document.getElementById('assignedTestsList');
+                testsList.innerHTML = data.tests?.length ? data.tests.map(t => `<div class="item"><div class="item-header"><span class="item-title">${t.title}</span>${t.already_taken?'<span class="badge badge-completed">✅ ПРОЙДЕН</span>':'<span class="badge badge-published">📋 ДОСТУПЕН</span>'}</div><div class="item-meta"><span>📚${t.topic}</span><span>❓${t.question_count} вопр.</span>${t.due_date?`<span>⏰До: ${t.due_date}</span>`:''}<span>👥${t.group_name}</span></div>${!t.already_taken?`<button class="btn btn-sm btn-primary mt-4" onclick="startTest(${t.id})">[НАЧАТЬ]</button>`:''}</div>`).join('') : '<p style="color:var(--text-dim)">Нет назначенных тестов</p>';
+            } catch (e) { console.error(e); showToast('Ошибка загрузки тестов', 'error'); }
+        }
+        async function markNotificationRead(id) { await fetch(`/api/student/notifications/${id}/read`, {method: 'POST'}); loadStudentDashboard(); }
+
+        async function startTest(testId) {
+            try {
+                const res = await fetch(`/api/student/tests/${testId}/start`, {method: 'POST'}), data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                currentQuiz = {testId, questions: data.questions, answers: {}}; renderQuiz();
+                document.getElementById('studentDashboard').querySelectorAll('.panel').forEach(c => { if (c.id !== 'quizContainer') c.style.display = 'none'; });
+                document.getElementById('quizContainer').classList.add('active');
+                showToast('📝 Тест загружен', 'success');
+            } catch (e) { showToast('ОШИБКА: ' + e.message, 'error'); }
+        }
+
+        function renderQuiz() {
+            const container = document.getElementById('quizQuestions');
+            document.getElementById('quizTitle').textContent = currentQuiz.questions.length + ' вопросов';
+            container.innerHTML = currentQuiz.questions.map((q, i) => {
+                if (q.type === 'single') return `<div class="quiz-question" data-qid="${q.id}"><strong>${i+1}. ${q.question}</strong> <small>(${q.points} балл${q.points>1?'а':'ов'})</small><div class="quiz-options">${q.options.map((opt, idx) => `<label class="quiz-option"><input type="radio" name="q_${q.id}" value="${idx}"><span>${String.fromCharCode(1040+idx)}) ${opt}</span></label>`).join('')}</div></div>`;
+                else if (q.type === 'multiple') return `<div class="quiz-question" data-qid="${q.id}"><strong>${i+1}. ${q.question}</strong> <small>(${q.points} балл${q.points>1?'а':'ов'}, выберите все правильные)</small><div class="quiz-options">${q.options.map((opt, idx) => `<label class="quiz-option"><input type="checkbox" name="q_${q.id}" value="${idx}"><span>${String.fromCharCode(1040+idx)}) ${opt}</span></label>`).join('')}</div></div>`;
+                else return `<div class="quiz-question" data-qid="${q.id}"><strong>${i+1}. ${q.question}</strong> <small>(${q.points} балл${q.points>1?'а':'ов'})</small><input type="text" class="text-answer-input" data-qid="${q.id}" placeholder="Ваш ответ..."><div class="text-answer-hint">💡 Ответьте 1-5 словами</div></div>`;
+            }).join('');
+        }
+
+        function collectQuizAnswers() {
+            const answers = [];
+            currentQuiz.questions.forEach(q => {
+                if (q.type === 'single') { const s = document.querySelector(`input[name="q_${q.id}"]:checked`); if (s) answers.push({question_id: q.id, user_answer: parseInt(s.value)}); }
+                else if (q.type === 'multiple') { const c = Array.from(document.querySelectorAll(`input[name="q_${q.id}"]:checked`)).map(el => parseInt(el.value)); if (c.length) answers.push({question_id: q.id, user_answer: c}); }
+                else { const inp = document.querySelector(`.text-answer-input[data-qid="${q.id}"]`); if (inp?.value.trim()) answers.push({question_id: q.id, user_answer: inp.value.trim()}); }
+            });
+            return answers;
+        }
+
+        async function submitQuiz() {
+            const answers = collectQuizAnswers();
+            if (!answers.length) { showToast('Ответьте хотя бы на один вопрос', 'warn'); return; }
+            if (!confirm(`Отправить ${answers.length} ответов?`)) return;
+            try {
+                const res = await fetch(`/api/student/tests/${currentQuiz.testId}/submit`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({answers}) }), data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                document.getElementById('quizContainer').classList.remove('active');
+                document.getElementById('resultCard').style.display = 'block';
+                showToast('✅ Тест отправлен!', 'success');
+            } catch (e) { showToast('ОШИБКА ОТПРАВКИ: ' + e.message, 'error'); }
+        }
+
+        function cancelQuiz() { if (confirm('Отменить тест? Ответы не сохранятся.')) { currentQuiz = null; document.getElementById('quizContainer').classList.remove('active'); document.getElementById('studentDashboard').querySelectorAll('.panel').forEach(c => c.style.display = ''); loadStudentDashboard(); } }
+
+        async function loadTeacherTests() {
+            try {
+                const res = await fetch('/api/teacher/tests'), data = await res.json();
+                const list = document.getElementById('myTestsList');
+                list.innerHTML = data.tests?.length ? data.tests.map(t => `<div class="item"><div class="item-header"><span class="item-title">${t.title}</span><span class="badge ${t.status==='published'?'badge-published':'badge-draft'}">${t.status==='published'?'📤 ОПУБЛИКОВАН':'✏️ ЧЕРНОВИК'}</span></div><div class="item-meta"><span>📚${t.topic}</span><span>❓${t.question_count} вопр.</span><span>📅${new Date(t.created_at).toLocaleDateString('ru')}</span></div><div class="btn-group" style="margin-top:12px;"><button class="btn btn-sm" onclick="editTest(${t.id})">[✏️]</button>${t.status==='draft'?`<button class="btn btn-sm btn-success" onclick="publishTest(${t.id})">[📤]</button>`:''}<button class="btn btn-sm btn-info" onclick="viewTestAnswers(${t.id})">[👁️]</button><button class="btn btn-sm" onclick="duplicateTest(${t.id})">[📋]</button><button class="btn btn-sm btn-danger" onclick="deleteTest(${t.id})">[🗑️]</button></div></div>`).join('') : '<p style="color:var(--text-dim)">Нет созданных тестов</p>';
+            } catch (e) { console.error(e); showToast('Ошибка загрузки тестов', 'error'); }
+        }
+
+        async function loadGroupsForTest() {
+            try {
+                const res = await fetch('/api/teacher/groups');
+                if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Ошибка загрузки групп'); }
+                const data = await res.json();
+                const select = document.getElementById('testGroup');
+                if (!select) return;
+                if (data.groups && data.groups.length > 0) {
+                    select.innerHTML = '<option value="">-- ВЫБЕРИТЕ ГРУППУ --</option>' + data.groups.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+                } else {
+                    select.innerHTML = '<option value="">-- НЕТ ГРУПП --</option>';
+                }
+            } catch (e) { console.error('Ошибка загрузки групп:', e); }
+        }
+
+        function getQuestionTypesConfig() {
+            const t = {};
+            if (document.getElementById('typeSingle').checked) t.single = 1;
+            if (document.getElementById('typeMultiple').checked) t.multiple = 1;
+            if (document.getElementById('typeText').checked) t.text = 1;
+            return Object.keys(t).length ? t : {single: 1};
+        }
+
+        async function generateTestDraft() {
+            const title = document.getElementById('testTitle').value.trim();
+            const topic = document.getElementById('testTopic').value.trim();
+            const difficulty = document.getElementById('testDifficulty').value;
+            const count = parseInt(document.getElementById('testCount').value) || 5;
+            const errorEl = document.getElementById('testError');
+            const btn = document.getElementById('generateBtn');
+            if (!title || !topic) { showToast('Введите название и тему', 'error'); return; }
+            setLoading(btn, true);
+            errorEl.style.display = 'block'; errorEl.textContent = '⏳ Генерация...'; errorEl.style.color = 'var(--text-dim)';
+            try {
+                const res = await fetch('/api/teacher/tests', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title, topic, difficulty, count, use_ai: true, question_types: getQuestionTypesConfig() }) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Ошибка генерации');
+                showToast('✅ ТЕСТ СГЕНЕРИРОВАН', 'success');
+                currentTestDraft = {id: data.test_id, title, topic}; await editTest(data.test_id);
+                errorEl.style.display = 'none';
+            } catch (e) { console.error('Ошибка генерации:', e); errorEl.textContent = 'ОШИБКА: ' + e.message; errorEl.style.color = 'var(--err)'; showToast(e.message, 'error'); } finally { setLoading(btn, false); }
+        }
+
+        function createManualTest() { const title = document.getElementById('testTitle').value.trim() || 'НОВЫЙ ТЕСТ', topic = document.getElementById('testTopic').value.trim() || 'ТЕМА'; currentTestDraft = {title, topic, questions: []}; document.getElementById('testEditor').style.display = 'block'; document.getElementById('editorTestId').textContent = '(НОВЫЙ)'; document.getElementById('editTestTitle').value = title; renderQuestionsEditor(); }
+
+        async function editTest(testId) {
+            try {
+                const res = await fetch(`/api/teacher/tests/${testId}`);
+                if (!res.ok) { const err = await res.json(); throw new Error(err.error || 'Ошибка загрузки теста'); }
+                const data = await res.json();
+                currentTestDraft = data.test; currentTestDraft.questions = data.questions || [];
+                document.getElementById('testEditor').style.display = 'block';
+                document.getElementById('editorTestId').textContent = `#${testId}`;
+                document.getElementById('editTestTitle').value = data.test.title || '';
+                renderQuestionsEditor();
+                document.getElementById('testEditor').scrollIntoView({behavior: 'smooth'});
+                showToast('📝 Тест загружен в редактор', 'success');
+            } catch (e) { console.error('Ошибка редактирования:', e); showToast('ОШИБКА: ' + e.message, 'error'); }
+        }
+
+        function renderQuestionsEditor() {
+            const container = document.getElementById('questionsEditor');
+            if (!currentTestDraft?.questions?.length) { container.innerHTML = '<p style="color:var(--text-dim)">Нет вопросов. Добавьте первый!</p>'; return; }
+            container.innerHTML = currentTestDraft.questions.map((q, i) => {
+                const correctIdx = q.correct_answer !== null && q.correct_answer !== undefined ? parseInt(q.correct_answer) : null;
+                const correctArr = q.correct_answers || [];
+                return `<div class="question-editor" data-qid="${q.id || 'new_'+i}"><div class="form-row" style="align-items:center;margin-bottom:12px;"><div style="flex:3"><label>ВОПРОС #${i+1}</label><textarea rows="2" class="question-text" placeholder="Текст вопроса...">${q.question_text || q.question || ''}</textarea></div><div style="flex:1"><label>БАЛЛЫ</label><input type="number" class="question-points" value="${q.points || 1}" min="1" max="10" style="width:60px"></div></div><div class="question-type-select"><button class="question-type-btn ${q.question_type==='single'?'active':''}" onclick="setQuestionType(this,'single')">[ОДИН ОТВЕТ]</button><button class="question-type-btn ${q.question_type==='multiple'?'active':''}" onclick="setQuestionType(this,'multiple')">[НЕСКОЛЬКО]</button><button class="question-type-btn ${q.question_type==='text'?'active':''}" onclick="setQuestionType(this,'text')">[ТЕКСТ]</button></div><div class="options-section" style="${q.question_type==='text'?'display:none':''}"><label>ВАРИАНТЫ ОТВЕТОВ (отметьте правильные):</label><div class="options-list">${(q.options || ['','','','']).map((opt, idx) => { const isCorrectSingle = q.question_type === 'single' && correctIdx === idx; const isCorrectMultiple = q.question_type === 'multiple' && correctArr.includes(idx); return `<div class="option-row"><input type="${q.question_type==='multiple'?'checkbox':'radio'}" name="correct_${q.id || i}" value="${idx}" ${isCorrectSingle || isCorrectMultiple ? 'checked' : ''}><input type="text" class="option-text" value="${opt || ''}" placeholder="Вариант ${String.fromCharCode(1040+idx)}"></div>`; }).join('')}</div></div><div class="text-answer-section" style="${q.question_type==='text'?'':'display:none'}"><label>ОЖИДАЕМЫЙ ОТВЕТ:</label><input type="text" class="expected-answer" value="${q.expected_answer || ''}" placeholder="ключевое слово"><div class="text-answer-hint">💡 Ответ проверяется без учёта регистра</div></div><button class="btn btn-sm btn-danger" style="margin-top:12px" onclick="removeQuestion(this)">[🗑️ УДАЛИТЬ]</button></div>`;
+            }).join('');
+        }
+
+        function setQuestionType(btn, type) { const editor = btn.closest('.question-editor'); editor.querySelectorAll('.question-type-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); editor.querySelector('.options-section').style.display = type === 'text' ? 'none' : ''; editor.querySelector('.text-answer-section').style.display = type === 'text' ? '' : 'none'; const qid = editor.dataset.qid, q = currentTestDraft.questions.find(q => (q.id || 'new_'+currentTestDraft.questions.indexOf(q)) == qid); if (q) q.question_type = type; }
+        function addQuestion() { if (!currentTestDraft.questions) currentTestDraft.questions = []; currentTestDraft.questions.push({ question_type: 'single', options: ['', '', '', ''], points: 1 }); renderQuestionsEditor(); }
+        function removeQuestion(btn) { const editor = btn.closest('.question-editor'), qid = editor.dataset.qid, idx = currentTestDraft.questions.findIndex(q => (q.id || 'new_'+currentTestDraft.questions.indexOf(q)) == qid); if (idx >= 0) { currentTestDraft.questions.splice(idx, 1); renderQuestionsEditor(); showToast('❓ Вопрос удалён', 'warn'); } }
+
+        async function saveTestDraft() {
+            if (!currentTestDraft) return;
+            const btn = document.getElementById('saveBtn');
+            setLoading(btn, true);
+            const questions = [];
+            document.querySelectorAll('.question-editor').forEach(editor => {
+                const qid = editor.dataset.qid;
+                const q = currentTestDraft.questions.find(q => (q.id || 'new_'+currentTestDraft.questions.indexOf(q)) == qid);
+                if (!q) return;
+                q.question_text = editor.querySelector('.question-text').value.trim();
+                q.points = parseInt(editor.querySelector('.question-points').value) || 1;
+                const activeBtn = editor.querySelector('.question-type-btn.active');
+                const btnText = activeBtn.textContent.toLowerCase();
+                q.question_type = btnText.includes('один') ? 'single' : btnText.includes('несколько') ? 'multiple' : 'text';
+                if (q.question_type !== 'text') {
+                    q.options = Array.from(editor.querySelectorAll('.option-text')).map(inp => inp.value.trim());
+                    const correctInputs = editor.querySelectorAll(`input[name^="correct_"]:checked`);
+                    const correctValues = Array.from(correctInputs).map(inp => parseInt(inp.value));
+                    if (q.question_type === 'single') { q.correct_answer = correctValues.length > 0 ? parseInt(correctValues[0]) : 0; q.correct_answers = null; }
+                    else { q.correct_answers = correctValues.length > 0 ? correctValues : [0]; q.correct_answer = null; }
+                } else { q.expected_answer = editor.querySelector('.expected-answer').value.trim(); q.options = null; q.correct_answer = null; q.correct_answers = null; }
+                questions.push(q);
+            });
+            currentTestDraft.questions = questions;
+            try {
+                const method = currentTestDraft.id ? 'PUT' : 'POST';
+                const url = currentTestDraft.id ? `/api/teacher/tests/${currentTestDraft.id}` : '/api/teacher/tests';
+                const res = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ title: document.getElementById('editTestTitle').value, questions: currentTestDraft.questions }) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+                showToast('✅ ЧЕРНОВИК СОХРАНЁН!', 'success');
+                if (!currentTestDraft.id) currentTestDraft.id = data.test_id;
+                loadTeacherTests();
+            } catch (e) { showToast('ОШИБКА СОХРАНЕНИЯ: ' + e.message, 'error'); } finally { setLoading(btn, false); }
+        }
+
+        function previewTest() {
+            if (!currentTestDraft?.questions?.length) { showToast('Нет вопросов для предпросмотра', 'warn'); return; }
+            const previewContent = document.getElementById('previewContent');
+            previewContent.innerHTML = `<div style="margin-bottom:16px"><strong>📝 ${currentTestDraft.title || 'Без названия'}</strong><br><small style="color:var(--text-dim)">📚 ${currentTestDraft.topic || 'Без темы'} | ❓ ${currentTestDraft.questions.length} вопросов</small></div><div style="border-top:2px solid var(--border);padding-top:16px">${currentTestDraft.questions.map((q, i) => `<div style="margin-bottom:16px;padding:12px;background:var(--surface-2);border:1px solid var(--border)"><strong>${i+1}. ${q.question_text || q.question}</strong><small style="color:var(--text-dim)">(${q.points} балл${q.points!==1?'а':'ов'})</small><br>${q.question_type === 'single' && q.options ? q.options.map((opt, idx) => `<div style="margin:4px 0"><small>${String.fromCharCode(1040+idx)}) ${opt} ${idx === q.correct_answer ? '✅' : ''}</small></div>`).join('') : q.question_type === 'multiple' && q.options ? q.options.map((opt, idx) => `<div style="margin:4px 0"><small>${String.fromCharCode(1040+idx)}) ${opt} ${q.correct_answers?.includes(idx) ? '✅' : ''}</small></div>`).join('') : q.question_type === 'text' ? `<div style="margin:8px 0;padding:8px;background:rgba(57,255,20,0.1);border-left:2px solid var(--ok)"><small>💡 Правильный ответ: <strong>${q.expected_answer}</strong></small></div>` : ''}</div>`).join('')}</div>`;
+            openModal('previewModal');
+            showToast('👁️ Режим предпросмотра', 'warn');
+        }
+
+        function closePreview() { closeModal('previewModal'); }
+        function publishTestFromPreview() { closePreview(); publishTest(); }
+
+        async function duplicateTest(testId) {
+            if (!confirm('Создать копию этого теста?')) return;
+            try {
+                const res = await fetch(`/api/teacher/tests/${testId}`);
+                if (!res.ok) throw new Error('Ошибка загрузки теста');
+                const data = await res.json();
+                const newTest = { title: data.test.title + ' (копия)', topic: data.test.topic, difficulty: data.test.difficulty, question_types: data.test.question_types, questions: data.questions.map(q => ({...q, id: null})) };
+                const saveRes = await fetch('/api/teacher/tests', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...newTest, use_ai: false}) });
+                const saveData = await saveRes.json();
+                if (!saveRes.ok) throw new Error(saveData.error);
+                showToast('✅ Тест скопирован!', 'success'); loadTeacherTests();
+            } catch (e) { showToast('ОШИБКА: ' + e.message, 'error'); }
+        }
+
+        async function publishTest(testId) {
+            const id = testId || currentTestDraft?.id;
+            const groupId = document.getElementById('testGroup').value;
+            const btn = document.getElementById('publishBtn');
+            if (!id) { showToast('ВЫБЕРИТЕ ТЕСТ', 'error'); return; }
+            if (!groupId) { showToast('ВЫБЕРИТЕ ГРУППУ', 'error'); return; }
+            if (!confirm('ОПУБЛИКОВАТЬ ТЕСТ ДЛЯ ГРУППЫ?')) return;
+            setLoading(btn, true);
+            try {
+                const res = await fetch(`/api/teacher/tests/${id}/publish`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({group_id: parseInt(groupId)}) });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Ошибка публикации');
+                showToast('✅ ТЕСТ ОПУБЛИКОВАН!', 'success'); loadTeacherTests();
+            } catch (e) { console.error('Ошибка публикации:', e); showToast('ОШИБКА: ' + e.message, 'error'); } finally { setLoading(btn, false); }
+        }
+
+        async function deleteTest(testId) {
+            const id = testId || currentTestDraft?.id;
+            if (!id) return;
+            if (!confirm('УДАЛИТЬ ТЕСТ? ЭТО ДЕЙСТВИЕ НЕОБРАТИМО.')) return;
+            try { const res = await fetch(`/api/teacher/tests/${id}`, {method: 'DELETE'}), data = await res.json(); if (!res.ok) throw new Error(data.error); showToast('✅ ТЕСТ УДАЛЁН', 'success'); currentTestDraft = null; document.getElementById('testEditor').style.display = 'none'; loadTeacherTests(); } catch (e) { showToast('ОШИБКА: ' + e.message, 'error'); }
+        }
+
+        async function loadTeacherResults() {
+            try {
+                const res = await fetch('/api/teacher/results'), data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Ошибка загрузки');
+                document.getElementById('teacherResults').innerHTML = data.results?.length ? data.results.map(r => `<div style="padding:8px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><div><strong>${r.student_full || r.student_name}</strong> (${r.username}) | 📚 ${r.test_title} | ✅ <span style="color:var(--ok)">${r.score}/${r.total_points}</span></div><small style="color:var(--text-dim)">📅 ${new Date(r.date).toLocaleDateString('ru')}</small></div>`).join('') : '<p style="color:var(--text-dim)">Нет результатов по вашим тестам</p>';
+            } catch (e) { console.error('Ошибка загрузки результатов:', e); document.getElementById('teacherResults').innerHTML = `<p class="error">ОШИБКА: ${e.message}</p>`; showToast(e.message, 'error'); }
+        }
+
+        async function viewTestAnswers(testId) {
+            try {
+                console.log('👁️ Загрузка ответов для теста:', testId);
+                const res = await fetch(`/api/teacher/test/${testId}/answers`);
+                if (!res.ok) throw new Error('Ошибка загрузки ответов');
+                const data = await res.json();
+                document.getElementById('teacherAnswersPanel').style.display = 'block';
+                document.getElementById('teacherAnswersPanel').scrollIntoView({behavior: 'smooth'});
+                document.querySelectorAll('#teacherDashboard .panel').forEach(p => { if (p.id !== 'teacherAnswersPanel') p.style.display = 'none'; });
+                document.getElementById('answersTestTitle').textContent = `#${testId}`;
+                let html = '';
+                if (data.results && data.results.length > 0) {
+                    data.results.forEach(r => {
+                        html += `<div style="padding:12px;border:2px solid var(--border);margin-bottom:12px;background:var(--surface-2)"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px"><strong>👤 ${r.student_name}</strong><span style="color:var(--ok);font-weight:bold">✅ ${r.score}/${r.total_points}</span></div><small style="color:var(--text-dim)">📅 ${new Date(r.date).toLocaleString('ru')} | 👤 ${r.username}</small><div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">${r.answers?.map(a => `<div style="margin:4px 0;padding:4px 8px;background:rgba(57,255,20,0.05);border-left:2px solid ${a.is_correct?'var(--ok)':'var(--err)'}"><small>• Вопрос #${a.question_id}: ${a.is_correct?'✅':'❌'} <span style="color:var(--text-dim)">(${a.points_earned} балл${a.points_earned!==1?'а':'ов'})</span></small></div>`).join('') || '<small style="color:var(--text-dim)">Нет ответов</small>'}</div></div>`;
+                    });
+                } else { html = '<p style="color:var(--text-dim)">Нет ответов на этот тест</p>'; }
+                document.getElementById('teacherAnswersContent').innerHTML = html;
+            } catch (e) { console.error('Ошибка загрузки ответов:', e); showToast('ОШИБКА: ' + e.message, 'error'); }
+        }
+
+        function closeAnswersPanel() {
+            document.getElementById('teacherAnswersPanel').style.display = 'none';
+            document.querySelectorAll('#teacherDashboard .panel').forEach(p => { if (['teacherAnswersPanel'].indexOf(p.id) === -1) p.style.display = ''; });
+            loadTeacherTests();
+        }
+
+        async function loadTeacherAnswers() { loadAdminResults(); }
+
+        document.addEventListener('DOMContentLoaded', () => { checkAuth(); });
+    </script>
+</body>
+</html>
