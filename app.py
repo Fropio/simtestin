@@ -14,6 +14,12 @@ from dotenv import load_dotenv
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 
+# Проверка наличия psycopg2
+try:
+    import psycopg2
+    HAS_POSTGRES = True
+except ImportError:
+    HAS_POSTGRES = False
 # ===== ПОДДЕРЖКА POSTGRESQL =====
 try:
     import psycopg2
@@ -44,16 +50,14 @@ if not API_KEY and not IAM_TOKEN:
 
 
 def get_db_connection():
-    # Проверяем, используется ли PostgreSQL
     db_url = os.getenv('DATABASE_URL')
 
+    # Если есть DATABASE_URL и psycopg2 установлен - используем PostgreSQL
     if db_url and HAS_POSTGRES and (db_url.startswith('postgres://') or db_url.startswith('postgresql://')):
-        # Подключение к PostgreSQL
         conn = psycopg2.connect(db_url)
-        # Для psycopg2 возвращаем обычный connection
         return conn
     else:
-        # SQLite для локальной разработки
+        # Иначе SQLite (для локальной разработки)
         conn = sqlite3.connect('database.db', timeout=30.0, check_same_thread=False)
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=30000")
