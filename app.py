@@ -14,12 +14,6 @@ from dotenv import load_dotenv
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Проверка наличия psycopg2
-try:
-    import psycopg2
-    HAS_POSTGRES = True
-except ImportError:
-    HAS_POSTGRES = False
 # ===== ПОДДЕРЖКА POSTGRESQL =====
 try:
     import psycopg2
@@ -341,7 +335,6 @@ def generate_test_via_ai(topic_content, difficulty, count, question_types=None):
 
         # === ПОЛНАЯ ДИАГНОСТИКА ОТВЕТА ===
         print(f"📥 Статус ответа: {resp.status_code}")
-        print(f"📥 Заголовки: {dict(resp.headers)}")
 
         if resp.status_code != 200:
             print(f"❌ ОШИБКА API!")
@@ -374,8 +367,7 @@ def generate_test_via_ai(topic_content, difficulty, count, question_types=None):
                 if not q.get('options') or len(q['options']) != 4:
                     q['options'] = ['Вариант А', 'Вариант Б', 'Вариант В', 'Вариант Г']
                 correct_idx = q.get('correct_index')
-                if correct_idx is None or not isinstance(correct_idx,
-                                                         (int, float)) or correct_idx < 0 or correct_idx > 3:
+                if correct_idx is None or not isinstance(correct_idx, (int, float)) or correct_idx < 0 or correct_idx > 3:
                     q['correct_index'] = 0
                 q['correct_answer'] = int(q['correct_index'])
 
@@ -415,7 +407,6 @@ def search_info_online(topic):
         wikipedia.set_lang("ru")
         print(f"🔍 Поиск в Wikipedia: '{topic}'")
 
-        # Пробуем поиск с защитой
         try:
             results = wikipedia.search(topic, results=3)
             print(f"📋 Найдено статей: {len(results)}")
@@ -428,11 +419,10 @@ def search_info_online(topic):
             print(f"⚠️ Wikipedia: ничего не найдено, fallback")
             return fallback, None
 
-        # Пробуем получить содержимое
-        for result in results[:2]:  # Только первые 2 статьи
+        for result in results[:2]:
             try:
                 page = wikipedia.page(result, auto_suggest=False)
-                content = page.summary[:2000]  # Меньше текста
+                content = page.summary[:2000]
 
                 if len(content.strip()) > 50:
                     print(f"✅ Найдено: {page.title} ({len(content)} симв.)")
@@ -447,7 +437,6 @@ def search_info_online(topic):
                 print(f"⚠️ Ошибка '{result}': {type(e).__name__}: {e}")
                 continue
 
-        # Fallback
         fallback = f"Создай образовательный тест из 5 вопросов по теме: {topic}"
         print(f"⚠️ Используем fallback")
         return fallback, None
@@ -456,6 +445,15 @@ def search_info_online(topic):
         print(f"❌ Критическая ошибка Wikipedia: {type(e).__name__}: {e}")
         return f"Создай тест из 5 вопросов по теме: {topic}", None
 
+
+# ===== ГЛАВНАЯ СТРАНИЦА (ИСПРАВЛЕНО!) =====
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+# ===== АВТОРИЗАЦИЯ =====
+@app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.get_json()
     if not data: return jsonify({"error": "Пустой запрос"}), 400
@@ -505,6 +503,7 @@ def auth_status():
     return jsonify({"authenticated": False})
 
 
+# ===== АДМИН ПАНЕЛЬ =====
 @app.route('/api/admin/register', methods=['POST'])
 @require_admin
 def admin_register():
@@ -573,8 +572,6 @@ def admin_get_users():
 @app.route('/api/admin/user/<int:user_id>', methods=['DELETE'])
 @require_admin
 def admin_delete_user(user_id):
-    """Удаление пользователя (только для админа)"""
-    # 🔐 Защита от удаления самого себя
     if user_id == session.get('user_id'):
         return jsonify({"error": "Нельзя удалить самого себя"}), 400
 
@@ -582,24 +579,19 @@ def admin_delete_user(user_id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-
-        # 🔍 Проверяем существование пользователя
         cursor.execute("SELECT id, username, role FROM users WHERE id = ?", (user_id,))
         user = cursor.fetchone()
         if not user:
             return jsonify({"error": "Пользователь не найден"}), 404
 
-        # 🗑️ Удаляем связанные данные
         cursor.execute("DELETE FROM results WHERE user_id = ?", (user_id,))
         cursor.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
 
-        # ⚠️ group_members может не существовать - обрабатываем ошибку
         try:
             cursor.execute("DELETE FROM group_members WHERE user_id = ?", (user_id,))
         except sqlite3.OperationalError:
-            pass  # Таблица не существует, пропускаем
+            pass
 
-        # 👨‍🏫 Если пользователь - учитель, удаляем его тесты
         if user['role'] == 'teacher':
             cursor.execute("SELECT id FROM tests WHERE teacher_id = ?", (user_id,))
             for t in cursor.fetchall():
@@ -607,15 +599,11 @@ def admin_delete_user(user_id):
                 cursor.execute("DELETE FROM test_assignments WHERE test_id = ?", (t['id'],))
             cursor.execute("DELETE FROM tests WHERE teacher_id = ?", (user_id,))
 
-        # ❌ Удаляем самого пользователя
         cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
         conn.commit()
 
         print(f"✅ Удалён: {user['username']}")
-        return jsonify({
-            "status": "success",
-            "message": f"Пользователь {user['username']} удалён"
-        })
+        return jsonify({"status": "success", "message": f"Пользователь {user['username']} удалён"})
 
     except sqlite3.Error as e:
         print(f"❌ Ошибка БД при удалении: {e}")
@@ -714,89 +702,85 @@ def admin_backup():
         if conn: conn.close()
 
 
+# ===== ЭКСПОРТ (ИСПРАВЛЕНО - УБРАНО ДУБЛИРОВАНИЕ!) =====
 @app.route('/api/admin/export', methods=['GET'])
 @require_admin
 def admin_export():
-    @app.route('/api/admin/export', methods=['GET'])
-    @require_admin
-    def admin_export():
-        fmt = request.args.get('format', 'xlsx').lower()
-        if fmt not in ['xlsx', 'txt', 'csv']:
-            return jsonify({"error": "Формат: xlsx, txt, csv"}), 400
+    fmt = request.args.get('format', 'xlsx').lower()
+    if fmt not in ['xlsx', 'txt', 'csv']:
+        return jsonify({"error": "Формат: xlsx, txt, csv"}), 400
 
-        conn = None
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                '''SELECT r.id, r.student_name, t.title as test, r.score, r.total_points, 
-                          ROUND(r.score*100.0/NULLIF(r.total_points,0),1) as percent, 
-                          r.date, u.username, u.full_name, g.name as group_name 
-                   FROM results r 
-                   JOIN tests t ON r.test_id=t.id 
-                   JOIN users u ON r.user_id=u.id 
-                   LEFT JOIN groups g ON u.group_id=g.id 
-                   ORDER BY r.date DESC''')
-            rows = [dict(r) for r in cursor.fetchall()]
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            '''SELECT r.id, r.student_name, t.title as test, r.score, r.total_points, 
+                      ROUND(r.score*100.0/NULLIF(r.total_points,0),1) as percent, 
+                      r.date, u.username, u.full_name, g.name as group_name 
+               FROM results r 
+               JOIN tests t ON r.test_id=t.id 
+               JOIN users u ON r.user_id=u.id 
+               LEFT JOIN groups g ON u.group_id=g.id 
+               ORDER BY r.date DESC''')
+        rows = [dict(r) for r in cursor.fetchall()]
 
-            if not rows:
-                return jsonify({"error": "Нет данных"}), 404
+        if not rows:
+            return jsonify({"error": "Нет данных"}), 404
 
-            ts = datetime.now().strftime('%Y%m%d_%H%M')
+        ts = datetime.now().strftime('%Y%m%d_%H%M')
 
-            if fmt == 'csv':
-                import csv
-                output = io.StringIO()
-                if rows:
-                    writer = csv.DictWriter(output, fieldnames=rows[0].keys(), delimiter=';')
-                    writer.writeheader()
-                    writer.writerows(rows)
-                output_bytes = io.BytesIO(output.getvalue().encode('utf-8-sig'))
-                output_bytes.seek(0)
-                return send_file(output_bytes, mimetype='text/csv',
-                                 download_name=f'simtestin_{ts}.csv', as_attachment=True)
+        if fmt == 'csv':
+            import csv
+            output = io.StringIO()
+            if rows:
+                writer = csv.DictWriter(output, fieldnames=rows[0].keys(), delimiter=';')
+                writer.writeheader()
+                writer.writerows(rows)
+            output_bytes = io.BytesIO(output.getvalue().encode('utf-8-sig'))
+            output_bytes.seek(0)
+            return send_file(output_bytes, mimetype='text/csv',
+                             download_name=f'simtestin_{ts}.csv', as_attachment=True)
 
-            elif fmt == 'xlsx':
-                from openpyxl import Workbook
-                wb = Workbook()
-                ws = wb.active
-                ws.title = 'Results'
+        elif fmt == 'xlsx':
+            from openpyxl import Workbook
+            wb = Workbook()
+            ws = wb.active
+            ws.title = 'Results'
 
-                # Заголовки
-                if rows:
-                    headers = list(rows[0].keys())
-                    ws.append(headers)
-                    # Данные
-                    for row in rows:
-                        ws.append([row[h] for h in headers])
+            if rows:
+                headers = list(rows[0].keys())
+                ws.append(headers)
+                for row in rows:
+                    ws.append([row[h] for h in headers])
 
-                output = io.BytesIO()
-                wb.save(output)
-                output.seek(0)
-                return send_file(output,
-                                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                                 download_name=f'simtestin_{ts}.xlsx', as_attachment=True)
+            output = io.BytesIO()
+            wb.save(output)
+            output.seek(0)
+            return send_file(output,
+                             mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                             download_name=f'simtestin_{ts}.xlsx', as_attachment=True)
 
-            else:  # txt
-                output = io.StringIO()
-                output.write(f"SimTestin Export | {datetime.now().strftime('%Y-%m-%d %H:%M')}\n" + "=" * 100 + "\n\n")
-                for r in rows:
-                    output.write(
-                        f"👤 {r['full_name'] or r['student_name']} ({r['username']})\n"
-                        f"📚 {r['test']}\n"
-                        f"✅ {r['score']}/{r['total_points']} ({r['percent']}%)\n"
-                        f"📅 {r['date']} | 👥 {r['group_name'] or '—'}\n"
-                        f"{'-' * 100}\n")
-                output_bytes = io.BytesIO(output.getvalue().encode('utf-8'))
-                output_bytes.seek(0)
-                return send_file(output_bytes, mimetype='text/plain',
-                                 download_name=f'simtestin_{ts}.txt', as_attachment=True)
+        else:  # txt
+            output = io.StringIO()
+            output.write(f"SimTestin Export | {datetime.now().strftime('%Y-%m-%d %H:%M')}\n" + "=" * 100 + "\n\n")
+            for r in rows:
+                output.write(
+                    f"👤 {r['full_name'] or r['student_name']} ({r['username']})\n"
+                    f"📚 {r['test']}\n"
+                    f"✅ {r['score']}/{r['total_points']} ({r['percent']}%)\n"
+                    f"📅 {r['date']} | 👥 {r['group_name'] or '—'}\n"
+                    f"{'-' * 100}\n")
+            output_bytes = io.BytesIO(output.getvalue().encode('utf-8'))
+            output_bytes.seek(0)
+            return send_file(output_bytes, mimetype='text/plain',
+                             download_name=f'simtestin_{ts}.txt', as_attachment=True)
 
-        except Exception as e:
-            return jsonify({"error": f"Ошибка экспорта: {str(e)}"}), 500
-        finally:
-            if conn:
-                conn.close()
+    except Exception as e:
+        return jsonify({"error": f"Ошибка экспорта: {str(e)}"}), 500
+    finally:
+        if conn:
+            conn.close()
 
 
 @app.route('/api/admin/results', methods=['GET'])
@@ -834,7 +818,6 @@ def admin_delete_result(result_id):
 @app.route('/api/admin/clear_results', methods=['DELETE'])
 @require_admin
 def admin_clear_results():
-    """Очистка всех результатов тестов (только для админа)"""
     confirm_header = request.headers.get('X-Confirm', '').strip().lower()
     if confirm_header != 'true':
         print(f"⚠️ Отказ в очистке: X-Confirm = '{request.headers.get('X-Confirm')}'")
@@ -856,11 +839,7 @@ def admin_clear_results():
         conn.commit()
 
         print(f"✅ Админ {session.get('username')} очистил {count} результатов")
-        return jsonify({
-            "status": "success",
-            "deleted": count,
-            "message": f"Удалено записей: {count}"
-        })
+        return jsonify({"status": "success", "deleted": count, "message": f"Удалено записей: {count}"})
 
     except sqlite3.Error as e:
         print(f"❌ Ошибка БД при очистке: {e}")
@@ -877,7 +856,6 @@ def admin_clear_results():
 @app.route('/api/admin/groups', methods=['GET'])
 @require_admin
 def admin_get_groups():
-    """Получение списка групп для администратора"""
     conn = None
     try:
         conn = get_db_connection()
@@ -917,6 +895,7 @@ def admin_get_groups():
             conn.close()
 
 
+# ===== УЧИТЕЛЬ =====
 @app.route('/api/teacher/groups', methods=['GET', 'POST'])
 @login_required
 @role_required('teacher', 'admin')
@@ -1148,6 +1127,7 @@ def teacher_view_answers(test_id):
         if conn: conn.close()
 
 
+# ===== СТУДЕНТ =====
 @app.route('/api/student/dashboard', methods=['GET'])
 @login_required
 @role_required('student')
@@ -1298,9 +1278,9 @@ def debug_auth():
                     "timestamp": datetime.now().isoformat()})
 
 
+# ===== ЗАПУСК =====
 init_db()
 
-# === ДИАГНОСТИКА ПРИ СТАРТЕ ===
 print("\n" + "═" * 70)
 print("🎓 SimTestin — Запуск")
 print("═" * 70)
