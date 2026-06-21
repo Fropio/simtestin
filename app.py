@@ -366,37 +366,51 @@ def generate_test_via_ai(topic_content, difficulty, count, question_types=None):
 
 
 def search_info_online(topic):
+    """Поиск информации в Wikipedia с улучшенной обработкой ошибок"""
     try:
         wikipedia.set_lang("ru")
-        results = wikipedia.search(topic, results=3)
-        print(f"🔍 Поиск: '{topic}' → {len(results)} результатов")
+        print(f"🔍 Поиск в Wikipedia: '{topic}'")
+
+        # Пробуем поиск
+        try:
+            results = wikipedia.search(topic, results=3)
+            print(f"📋 Найдено статей: {len(results)}")
+        except Exception as e:
+            print(f"⚠️ Ошибка поиска: {e}")
+            results = []
 
         if not results:
-            fallback = f"Тема: {topic}. Создай образовательный тест по этой теме."
+            # Если ничего не найдено - возвращаем fallback
+            fallback = f"Тема: {topic}. Создай образовательный тест из 5 вопросов по этой теме."
             print(f"⚠️ Wikipedia: ничего не найдено, используем fallback")
             return fallback, None
 
+        # Пробуем получить содержимое первой статьи
         for result in results:
             try:
                 page = wikipedia.page(result, auto_suggest=False)
-                content = page.summary[:3000]
+                content = page.summary[:3000]  # Берём первые 3000 символов
+
                 if len(content.strip()) > 20:
                     print(f"✅ Найдено: {page.title} ({len(content)} симв.)")
                     return content, None
-            except (wikipedia.exceptions.DisambiguationError, wikipedia.exceptions.PageError) as e:
-                print(f"⚠️ Статья '{result}': {type(e).__name__}")
+            except (wikipedia.exceptions.DisambiguationError,
+                    wikipedia.exceptions.PageError) as e:
+                print(f"⚠️ Статья '{result}': {type(e).__name__} - пропускаем")
                 continue
             except Exception as e:
-                print(f"⚠️ Ошибка {result}: {e}")
+                print(f"⚠️ Ошибка при загрузке '{result}': {e}")
                 continue
 
-        fallback = f"Тема: {topic}. Создай образовательный тест по этой теме."
+        # Если все статьи не подошли
+        fallback = f"Тема: {topic}. Создай образовательный тест из 5 вопросов."
         print(f"⚠️ Все статьи не подошли, используем fallback")
         return fallback, None
-    except Exception as e:
-        print(f"❌ Ошибка поиска: {e}")
-        return f"Тема: {topic}. Создай тест.", None
 
+    except Exception as e:
+        print(f"❌ Критическая ошибка поиска: {e}")
+        # Возвращаем безопасный fallback
+        return f"Тема: {topic}. Создай тест из 5 вопросов по этой теме.", None
 
 @app.route('/')
 def index():
