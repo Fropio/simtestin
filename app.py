@@ -264,7 +264,22 @@ def require_admin(f):
 
 
 def generate_test_via_ai(topic_content, difficulty, count, question_types=None):
+    """Генерация теста через YandexGPT с полной диагностикой"""
     url = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+
+    # === ДИАГНОСТИКА ===
+    print(f"\n{'=' * 60}")
+    print(f"🤖 Запрос к YandexGPT")
+    print(f"📁 FOLDER_ID: {FOLDER_ID[:10]}...{FOLDER_ID[-5:]}" if FOLDER_ID else "❌ FOLDER_ID пустой!")
+    print(f"🔑 API_KEY: {'✅ ' + API_KEY[:8] + '...' if API_KEY else '❌ Не задан'}")
+    print(f"🔑 IAM_TOKEN: {'✅ задан' if IAM_TOKEN else '❌ Не задан'}")
+    print(f"📝 Тема: {topic_content[:100]}...")
+    print(f"{'=' * 60}\n")
+
+    if not FOLDER_ID:
+        return {"error": "Не задан FOLDER_ID"}
+    if not API_KEY and not IAM_TOKEN:
+        return {"error": "Не задан API_KEY или IAM_TOKEN"}
 
     if not question_types:
         question_types = {'single': 1}
@@ -313,20 +328,41 @@ def generate_test_via_ai(topic_content, difficulty, count, question_types=None):
     else:
         headers["Authorization"] = f"Bearer {IAM_TOKEN}"
 
-    data = {"modelUri": f"gpt://{FOLDER_ID}/yandexgpt/latest",
-            "completionOptions": {"stream": False, "temperature": 0.7, "maxTokens": 4000},
-            "messages": [{"role": "user", "text": prompt}]}
+    data = {
+        "modelUri": f"gpt://{FOLDER_ID}/yandexgpt-lite/latest",
+        "completionOptions": {"stream": False, "temperature": 0.6, "maxTokens": 4000},
+        "messages": [{"role": "system", "text": "Ты — эксперт-методист, создающий тесты."},
+                     {"role": "user", "text": prompt}]
+    }
 
     try:
+        print(f"📤 Отправляю запрос в YandexGPT...")
         resp = requests.post(url, headers=headers, json=data, timeout=90)
-        if resp.status_code != 200: return {"error": f"API {resp.status_code}"}
+
+        # === ПОЛНАЯ ДИАГНОСТИКА ОТВЕТА ===
+        print(f"📥 Статус ответа: {resp.status_code}")
+        print(f"📥 Заголовки: {dict(resp.headers)}")
+
+        if resp.status_code != 200:
+            print(f"❌ ОШИБКА API!")
+            print(f"❌ Текст ошибки: {resp.text}")
+            try:
+                error_json = resp.json()
+                print(f"❌ JSON ошибки: {json.dumps(error_json, ensure_ascii=False, indent=2)}")
+                error_msg = error_json.get('error', {}).get('message', resp.text)
+            except:
+                error_msg = resp.text
+            return {"error": f"API {resp.status_code}: {error_msg}"}
 
         result = resp.json()
+        print(f"✅ Успешный ответ от YandexGPT")
+
         text = result['result']['alternatives'][0]['message']['text']
         match = re.search(r'\{.*\}', text, re.DOTALL)
         parsed = json.loads(match.group(0) if match else text)
 
-        if "questions" not in parsed: return {"error": "Нет 'questions'"}
+        if "questions" not in parsed:
+            return {"error": "Нет 'questions' в ответе"}
 
         filtered = [q for q in parsed["questions"] if q.get('type') in allowed_types]
 
@@ -359,65 +395,67 @@ def generate_test_via_ai(topic_content, difficulty, count, question_types=None):
                     q['expected_answer'] = 'правильный ответ'
                 q['options'] = None
 
+        print(f"✅ Сгенерировано {len(filtered[:count])} вопросов")
         return {"questions": filtered[:count]}
 
+    except requests.exceptions.Timeout:
+        print(f"⏱️ Таймаут запроса к YandexGPT")
+        return {"error": "Таймаут: YandexGPT не отвечает"}
+    except requests.exceptions.ConnectionError:
+        print(f"🌐 Ошибка соединения с YandexGPT")
+        return {"error": "Нет соединения с YandexGPT API"}
     except Exception as e:
+        print(f"❌ Критическая ошибка: {e}")
         return {"error": f"Ошибка: {str(e)}"}
 
 
 def search_info_online(topic):
-    """Поиск информации в Wikipedia с улучшенной обработкой ошибок"""
+    """Поиск информации в Wikipedia с защитой от всех ошибок"""
     try:
         wikipedia.set_lang("ru")
         print(f"🔍 Поиск в Wikipedia: '{topic}'")
 
-        # Пробуем поиск
+        # Пробуем поиск с защитой
         try:
             results = wikipedia.search(topic, results=3)
             print(f"📋 Найдено статей: {len(results)}")
         except Exception as e:
-            print(f"⚠️ Ошибка поиска: {e}")
+            print(f"⚠️ Ошибка поиска Wikipedia: {type(e).__name__}: {e}")
             results = []
 
         if not results:
-            # Если ничего не найдено - возвращаем fallback
-            fallback = f"Тема: {topic}. Создай образовательный тест из 5 вопросов по этой теме."
-            print(f"⚠️ Wikipedia: ничего не найдено, используем fallback")
+            fallback = f"Создай образовательный тест из 5 вопросов по теме: {topic}"
+            print(f"⚠️ Wikipedia: ничего не найдено, fallback")
             return fallback, None
 
-        # Пробуем получить содержимое первой статьи
-        for result in results:
+        # Пробуем получить содержимое
+        for result in results[:2]:  # Только первые 2 статьи
             try:
                 page = wikipedia.page(result, auto_suggest=False)
-                content = page.summary[:3000]  # Берём первые 3000 символов
+                content = page.summary[:2000]  # Меньше текста
 
-                if len(content.strip()) > 20:
+                if len(content.strip()) > 50:
                     print(f"✅ Найдено: {page.title} ({len(content)} симв.)")
                     return content, None
-            except (wikipedia.exceptions.DisambiguationError,
-                    wikipedia.exceptions.PageError) as e:
-                print(f"⚠️ Статья '{result}': {type(e).__name__} - пропускаем")
+            except wikipedia.exceptions.DisambiguationError:
+                print(f"⚠️ '{result}': неоднозначность - пропускаем")
+                continue
+            except wikipedia.exceptions.PageError:
+                print(f"⚠️ '{result}': страница не найдена")
                 continue
             except Exception as e:
-                print(f"⚠️ Ошибка при загрузке '{result}': {e}")
+                print(f"⚠️ Ошибка '{result}': {type(e).__name__}: {e}")
                 continue
 
-        # Если все статьи не подошли
-        fallback = f"Тема: {topic}. Создай образовательный тест из 5 вопросов."
-        print(f"⚠️ Все статьи не подошли, используем fallback")
+        # Fallback
+        fallback = f"Создай образовательный тест из 5 вопросов по теме: {topic}"
+        print(f"⚠️ Используем fallback")
         return fallback, None
 
     except Exception as e:
-        print(f"❌ Критическая ошибка поиска: {e}")
-        # Возвращаем безопасный fallback
-        return f"Тема: {topic}. Создай тест из 5 вопросов по этой теме.", None
+        print(f"❌ Критическая ошибка Wikipedia: {type(e).__name__}: {e}")
+        return f"Создай тест из 5 вопросов по теме: {topic}", None
 
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-
-@app.route('/api/auth/login', methods=['POST'])
 def login():
     data = request.get_json()
     if not data: return jsonify({"error": "Пустой запрос"}), 400
@@ -1262,22 +1300,25 @@ def debug_auth():
 
 init_db()
 
+# === ДИАГНОСТИКА ПРИ СТАРТЕ ===
+print("\n" + "═" * 70)
+print("🎓 SimTestin — Запуск")
+print("═" * 70)
+print(f"🔐 ADMIN_PASSWORD: {'✅ задан' if ADMIN_PASSWORD else '❌ НЕ ЗАДАН!'}")
+print(f"📁 YANDEX_FOLDER_ID: {FOLDER_ID if FOLDER_ID else '❌ НЕ ЗАДАН!'}")
+print(f"🔑 YANDEX_API_KEY: {'✅ ' + API_KEY[:10] + '...' if API_KEY else '❌ Не задан'}")
+print(f"🔑 YANDEX_IAM_TOKEN: {'✅ задан' if IAM_TOKEN else '❌ Не задан'}")
+print(f"🗄️ DATABASE_URL: {'✅ PostgreSQL' if os.getenv('DATABASE_URL') else '📁 SQLite'}")
+print("═" * 70 + "\n")
+
 if __name__ == '__main__':
     debug_mode = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
     host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('PORT', 5000))
 
-    print("\n" + "═" * 70)
-    print("🎓 SimTestin — Production Ready")
-    print("═" * 70)
-    print(f"🔐 ADMIN_PASSWORD: {'✅' if ADMIN_PASSWORD else '❌'}")
-    print(f"🤖 Yandex GPT: {'✅' if API_KEY or IAM_TOKEN else '❌'}")
+    local_url = f"http://127.0.0.1:{port}" if host in ['0.0.0.0', '127.0.0.1'] else f"http://{host}:{port}"
+    print(f"🔗 Локальная версия: {local_url}")
     print(f"🌐 Режим: {'🔧 ОТЛАДКА' if debug_mode else '🚀 ПРОДАКШЕН'}")
-    print("═" * 70 + "\n")
 
-    if debug_mode:
-        app.run(debug=True, host=host, port=port, threaded=True)
-
-    # В продакшене Flask запускается через gunicorn, не через app.run()
     if debug_mode:
         app.run(debug=True, host=host, port=port, threaded=True)
