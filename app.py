@@ -1246,10 +1246,11 @@ def debug_auth():
                     "timestamp": datetime.now().isoformat()})
 
 
+init_db()
+
 if __name__ == '__main__':
-    init_db()
-    debug_mode = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
-    host = os.getenv('FLASK_HOST', '0.0.0.0')  # Важно для хостинга!
+    debug_mode = os.getenv('FLASK_DEBUG', 'true').lower() == 'true'
+    host = os.getenv('FLASK_HOST', '0.0.0.0')
     port = int(os.getenv('PORT', 5000))
 
     print("\n" + "═" * 70)
@@ -1259,6 +1260,9 @@ if __name__ == '__main__':
     print(f"🤖 Yandex GPT: {'✅' if API_KEY or IAM_TOKEN else '❌'}")
     print(f"🌐 Режим: {'🔧 ОТЛАДКА' if debug_mode else '🚀 ПРОДАКШЕН'}")
     print("═" * 70 + "\n")
+
+    if debug_mode:
+        app.run(debug=True, host=host, port=port, threaded=True)
 
     # В продакшене Flask запускается через gunicorn, не через app.run()
     if debug_mode:

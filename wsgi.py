@@ -2,7 +2,7 @@ import os
 import sys
 from app import app as application, init_db
 
-# Инициализируем базу данных при каждом запуске
+# Инициализация БД
 init_db()
 
 path = os.path.dirname(os.path.abspath(__file__))
