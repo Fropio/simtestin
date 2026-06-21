@@ -1,7 +1,6 @@
 import sqlite3
 import json
 import requests
-import pandas as pd
 from flask import Flask, render_template, request, jsonify, send_file, session
 from datetime import datetime
 import io
@@ -662,42 +661,86 @@ def admin_backup():
 @app.route('/api/admin/export', methods=['GET'])
 @require_admin
 def admin_export():
-    fmt = request.args.get('format', 'xlsx').lower()
-    if fmt not in ['xlsx', 'txt', 'csv']: return jsonify({"error": "Формат: xlsx, txt, csv"}), 400
-    conn = None
-    try:
-        conn = get_db_connection()
-        df = pd.read_sql_query(
-            '''SELECT r.id, r.student_name, t.title as test, r.score, r.total_points, ROUND(r.score*100.0/NULLIF(r.total_points,0),1) as percent, r.date, u.username, u.full_name, g.name as group_name FROM results r JOIN tests t ON r.test_id=t.id JOIN users u ON r.user_id=u.id LEFT JOIN groups g ON u.group_id=g.id ORDER BY r.date DESC''',
-            conn)
-        if df.empty: return jsonify({"error": "Нет данных"}), 404
-        ts = datetime.now().strftime('%Y%m%d_%H%M')
-        if fmt == 'csv':
-            output = io.BytesIO()
-            df.to_csv(output, sep=';', index=False, encoding='utf-8-sig')
-            output.seek(0)
-            return send_file(output, mimetype='text/csv', download_name=f'simtestin_{ts}.csv', as_attachment=True)
-        elif fmt == 'xlsx':
-            output = io.BytesIO()
-            with pd.ExcelWriter(output, engine='openpyxl') as w:
-                df.to_excel(w, index=False, sheet_name='Results')
-            output.seek(0)
-            return send_file(output, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                             download_name=f'simtestin_{ts}.xlsx', as_attachment=True)
-        else:
-            output = io.StringIO()
-            output.write(f"SimTestin Export | {datetime.now().strftime('%Y-%m-%d %H:%M')}\n" + "=" * 100 + "\n\n")
-            for _, r in df.iterrows():
-                output.write(
-                    f"👤 {r['full_name'] or r['student_name']} ({r['username']})\n📚 {r['test']}\n✅ {r['score']}/{r['total_points']} ({r['percent']}%)\n📅 {r['date']} | 👥 {r['group_name'] or '—'}\n{'-' * 100}\n")
-            output_bytes = io.BytesIO(output.getvalue().encode('utf-8'))
-            output_bytes.seek(0)
-            return send_file(output_bytes, mimetype='text/plain', download_name=f'simtestin_{ts}.txt',
-                             as_attachment=True)
-    except Exception as e:
-        return jsonify({"error": f"Ошибка экспорта: {str(e)}"}), 500
-    finally:
-        if conn: conn.close()
+    @app.route('/api/admin/export', methods=['GET'])
+    @require_admin
+    def admin_export():
+        fmt = request.args.get('format', 'xlsx').lower()
+        if fmt not in ['xlsx', 'txt', 'csv']:
+            return jsonify({"error": "Формат: xlsx, txt, csv"}), 400
+
+        conn = None
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                '''SELECT r.id, r.student_name, t.title as test, r.score, r.total_points, 
+                          ROUND(r.score*100.0/NULLIF(r.total_points,0),1) as percent, 
+                          r.date, u.username, u.full_name, g.name as group_name 
+                   FROM results r 
+                   JOIN tests t ON r.test_id=t.id 
+                   JOIN users u ON r.user_id=u.id 
+                   LEFT JOIN groups g ON u.group_id=g.id 
+                   ORDER BY r.date DESC''')
+            rows = [dict(r) for r in cursor.fetchall()]
+
+            if not rows:
+                return jsonify({"error": "Нет данных"}), 404
+
+            ts = datetime.now().strftime('%Y%m%d_%H%M')
+
+            if fmt == 'csv':
+                import csv
+                output = io.StringIO()
+                if rows:
+                    writer = csv.DictWriter(output, fieldnames=rows[0].keys(), delimiter=';')
+                    writer.writeheader()
+                    writer.writerows(rows)
+                output_bytes = io.BytesIO(output.getvalue().encode('utf-8-sig'))
+                output_bytes.seek(0)
+                return send_file(output_bytes, mimetype='text/csv',
+                                 download_name=f'simtestin_{ts}.csv', as_attachment=True)
+
+            elif fmt == 'xlsx':
+                from openpyxl import Workbook
+                wb = Workbook()
+                ws = wb.active
+                ws.title = 'Results'
+
+                # Заголовки
+                if rows:
+                    headers = list(rows[0].keys())
+                    ws.append(headers)
+                    # Данные
+                    for row in rows:
+                        ws.append([row[h] for h in headers])
+
+                output = io.BytesIO()
+                wb.save(output)
+                output.seek(0)
+                return send_file(output,
+                                 mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                                 download_name=f'simtestin_{ts}.xlsx', as_attachment=True)
+
+            else:  # txt
+                output = io.StringIO()
+                output.write(f"SimTestin Export | {datetime.now().strftime('%Y-%m-%d %H:%M')}\n" + "=" * 100 + "\n\n")
+                for r in rows:
+                    output.write(
+                        f"👤 {r['full_name'] or r['student_name']} ({r['username']})\n"
+                        f"📚 {r['test']}\n"
+                        f"✅ {r['score']}/{r['total_points']} ({r['percent']}%)\n"
+                        f"📅 {r['date']} | 👥 {r['group_name'] or '—'}\n"
+                        f"{'-' * 100}\n")
+                output_bytes = io.BytesIO(output.getvalue().encode('utf-8'))
+                output_bytes.seek(0)
+                return send_file(output_bytes, mimetype='text/plain',
+                                 download_name=f'simtestin_{ts}.txt', as_attachment=True)
+
+        except Exception as e:
+            return jsonify({"error": f"Ошибка экспорта: {str(e)}"}), 500
+        finally:
+            if conn:
+                conn.close()
 
 
 @app.route('/api/admin/results', methods=['GET'])
