@@ -1,6 +1,9 @@
 import os
 import sys
-from app import app as application
+from app import app as application, init_db
+
+# Инициализируем базу данных при каждом запуске
+init_db()
 
 path = os.path.dirname(os.path.abspath(__file__))
 if path not in sys.path:
